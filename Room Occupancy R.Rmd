@@ -1,0 +1,260 @@
+---
+title: "CW1 Various Workings"
+author: "MB"
+date: "14/11/2020"
+output: pdf_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+training_data <- read.table("Room_Occupancy_Training_set.txt", header = T, sep = ",")
+test_data <- read.table("Room_Occupancy_Testing_set.txt", header = T, sep = ",")
+summary(training_data)
+```
+```{r}
+str(training_data)
+```
+
+
+```{r,message=FALSE}
+library(caret)
+library(ROCR)
+```
+
+10 fold cross validation using Temperature as the only predictor of room occupancy. Output Auroc values and error rates for each fold. 
+
+```{r}
+
+set.seed(100)
+folds <- createFolds(y=training_data[,1], k=10)
+
+auc_value_temp <- as.numeric()
+temp_error_rate_value <- as.numeric()
+
+for (i in 1:10){
+  fold_cv_test <- training_data[folds[[i]],]
+  fold_cv_train <- training_data[-folds[[i]],]
+  trained_model_temp <- glm(Occupancy ~ Temperature, 
+                            data = fold_cv_train, 
+                            family = "binomial")
+  pred_prob_temp <- predict(trained_model_temp,
+                            fold_cv_test, 
+                            type = "response")
+  
+  #for confusion matrix & error rate:
+  glm_pred_temp <- rep(1,dim(fold_cv_test)[1])
+  glm_pred_temp[pred_prob_temp < 0.5] <- 0
+  temp_error_rate_fold <- mean(glm_pred_temp != fold_cv_test[,6])
+  temp_error_rate_value <- append(temp_error_rate_value,temp_error_rate_fold)
+ 
+  
+  #for Auroc Values:
+  pred_temp <- prediction(pred_prob_temp, fold_cv_test$Occupancy)
+  auroc_temp <- performance(pred_temp, measure = "auc")
+  auroc_temp <- auroc_temp@y.values[[1]]
+  auc_value_temp <- append(auc_value_temp,auroc_temp)
+}
+
+print(auc_value_temp)
+paste0("The average AUROC value is : " , round(mean(auc_value_temp),7)) 
+```
+
+```{r}
+
+paste0("The average classification error rate for each fold is : " ,mean(temp_error_rate_value))
+
+paste0("The perccentage of correctly classified observations is : " , mean(glm_pred_temp ==fold_cv_test$Occupancy)*100)
+
+table(glm_pred_temp,fold_cv_test$Occupancy)
+```
+
+The average AUROC is high at over 0.86, suggesting that temperature is a good predictor of room occupancy and the model used could be considered a good fit for predicting room occupancy.
+
+The classification error rate for each fold is approximately 15%. Overall the percentage correctly classified observations is 85%.
+The TPR from the confusion matrix is 77.77% and the FPR is 10.87% using 0.5 as the predictive threshold. 
+
+----------------
+
+10 fold cross validation using humidity as the only predictor of room occupancy
+
+```{r}
+
+set.seed(100)
+folds <- createFolds(y=training_data[,5], k=10)
+
+auc_value_humidRatio <- as.numeric()
+hr_error_rate_value <- as.numeric()
+
+for (i in 1:10){
+  fold_cv_test <- training_data[folds[[i]],]
+  fold_cv_train <- training_data[-folds[[i]],]
+  trained_model_humidRatio <- glm(Occupancy ~ HumidityRatio, 
+                            data = fold_cv_train, 
+                            family = "binomial")
+  pred_prob_humidRatio <- predict(trained_model_humidRatio,
+                            fold_cv_test, 
+                            type = "response")
+  
+  #for confusion matrix & error rate  :
+  glm_pred_humidRatio <- rep(1,dim(fold_cv_test)[1])
+  glm_pred_humidRatio[pred_prob_humidRatio < 0.5] <- 0
+  hr_error_rate_fold <- mean(glm_pred_humidRatio != fold_cv_test[,6])
+  hr_error_rate_value <- append(hr_error_rate_value,hr_error_rate_fold)
+  
+  #for Auroc Values:
+  pred_humidRatio <- prediction(pred_prob_humidRatio,fold_cv_test$Occupancy)
+  auroc_humidRatio <- performance(pred_humidRatio, measure = "auc")
+  auroc_humidRatio <- auroc_humidRatio@y.values[[1]]
+
+  auc_value_humidRatio <- append(auc_value_humidRatio,auroc_humidRatio)
+}
+
+print(auc_value_humidRatio)
+paste0("The average AUROC value is : " , round(mean(auc_value_humidRatio),7)) 
+
+```
+
+
+
+```{r}
+paste0("The average classification error rate for each fold is : " ,mean(hr_error_rate_value))
+
+paste0("The perccentage of correctly classified observations is : " , mean(glm_pred_humidRatio ==fold_cv_test$Occupancy)*100)
+
+table(glm_pred_humidRatio,fold_cv_test$Occupancy)
+
+```
+As with temperature these values also suggest that Humidity Ratio is a good predictor of room occupancy and the model accuracy is good. The average AUROC Value is 0.84.
+
+The error rate for each fold for humidity ratio is slightly higher than for temperature at 22%. 
+Overall the percentage correctly classified observations is 77%. Again, not as good as for temperature. This could be because the model is a better fit for temperature, it could be that humidity ratio does not follow a strictly linear shape in the observations whereas temperature is more linear (in the observations). 
+The TPR from the confusion matrix is 67.30% and the FPR is 20.3% using 0.5 as the predictive threshold. It may be that a different predictive threshold would yeild better results to reduce the FPR and increase the TPR.
+
+
+----------------
+
+10 fold cross validation using temperature and humidity ratio to predict room occupancy:
+
+```{r}
+
+set.seed(100)
+
+auc_value_humidRatio_temp <- as.numeric()
+temp_hr_error_rate_value <- as.numeric()
+
+for (i in 1:10){
+  fold_cv_test <- training_data[folds[[i]],]
+  fold_cv_train <- training_data[-folds[[i]],]
+  trained_model_humidRatio_temp <- glm(Occupancy ~ HumidityRatio+Temperature, 
+                            data = fold_cv_train, 
+                            family = "binomial")
+  pred_prob_humidRatio_temp <- predict(trained_model_humidRatio_temp,
+                            fold_cv_test, 
+                            type = "response")
+  
+  #for confusion matrix & error rate:
+  glm_pred_humidRatio_temp <- rep(1,dim(fold_cv_test)[1])
+  glm_pred_humidRatio_temp[pred_prob_humidRatio_temp < 0.5] <- 0
+  temp_hr_error_rate_fold <- mean(glm_pred_humidRatio_temp != fold_cv_test[,6])
+  temp_hr_error_rate_value <- append(temp_hr_error_rate_value,temp_hr_error_rate_fold)
+  
+  #for Auroc Value
+  pred_humidRatio_temp <- prediction(pred_prob_humidRatio_temp,
+                          fold_cv_test$Occupancy)
+  auroc_humidRatio_temp <- performance(pred_humidRatio_temp, measure = "auc")
+  auroc_humidRatio_temp <- auroc_humidRatio_temp@y.values[[1]]
+
+  auc_value_humidRatio_temp <- append(auc_value_humidRatio_temp,auroc_humidRatio_temp)
+}
+
+print(auc_value_humidRatio_temp)
+paste0("The average AUROC value is : " , round(mean(auc_value_humidRatio_temp),7)) 
+
+```
+
+
+```{r}
+paste0("The average classification error rate for each fold is : " ,mean(temp_hr_error_rate_value))
+
+paste0("The perccentage of correctly classified observations is : " , mean(glm_pred_humidRatio_temp ==fold_cv_test$Occupancy)*100)
+
+table(glm_pred_humidRatio_temp,fold_cv_test$Occupancy)
+
+```
+
+Results improve with humidity and temperature combined. Here The average AUROC Value is 0.87 and the model accurately predicts 86% of the test data from the K-folds.
+
+The classification error rate for each fold is just under 15%. Overall the percentage correctly classified observations is 86%.
+The TPR from the confusion matrix is 79.37% and the FPR is 10.95% using 0.5 as the predictive threshold. Showing an improvement on the two separate models.
+
+
+Comparison of the above three models on predicting the testing data set. 
+Model 1 uses temperature only
+Model 2 uses humidity ratio only
+Model 3 uses temperature and humidity ratio
+
+```{r}
+trained_model_1 <- glm(Occupancy ~ Temperature,data = training_data, family = "binomial")
+trained_model_2 <- glm(Occupancy ~ HumidityRatio, data = training_data, family = "binomial")
+trained_model_3 <- glm(Occupancy ~ Temperature+HumidityRatio, data = training_data, family = "binomial")
+
+pred_prob_trained_model_1 <- predict(trained_model_1, test_data, type = "response")
+pred_prob_trained_model_2 <- predict(trained_model_2, test_data, type = "response")
+pred_prob_trained_model_3 <- predict(trained_model_3, test_data, type = "response")
+
+pred_trained_model_1 <- prediction(pred_prob_trained_model_1,test_data$Occupancy)
+pred_trained_model_2 <- prediction(pred_prob_trained_model_2,test_data$Occupancy)
+pred_trained_model_3 <- prediction(pred_prob_trained_model_3,test_data$Occupancy)
+
+auroc_trained_model_1 <- performance(pred_trained_model_1,measure = "auc")
+auroc_trained_model_2 <- performance(pred_trained_model_2,measure = "auc")
+auroc_trained_model_3 <- performance(pred_trained_model_3,measure = "auc")
+
+auroc_trained_model_value_1 <- auroc_trained_model_1@y.values[[1]]
+auroc_trained_model_value_2 <- auroc_trained_model_2@y.values[[1]]
+auroc_trained_model_value_3 <- auroc_trained_model_3@y.values[[1]]
+
+
+paste0("Auroc Value: Trained model 1, Temperature: ",
+       auroc_trained_model_value_1)
+paste0("Auroc Value: Trained model 2, Humidity Ratio: ", 
+       auroc_trained_model_value_2)
+paste0("Auroc Value: Trained model 3, Temperature and Humidity Ratio: ", 
+       auroc_trained_model_value_3)
+
+```
+Calculate TPR and FPR:
+
+```{r}
+perf_trained_model_1 <- performance(pred_trained_model_1,measure = "tpr", x.measure = "fpr")
+perf_trained_model_2 <- performance(pred_trained_model_2,measure = "tpr", x.measure = "fpr")
+perf_trained_model_3 <- performance(pred_trained_model_3,measure = "tpr", x.measure = "fpr")
+
+```
+
+```{r}
+
+plot(perf_trained_model_1, col = "blue", main = "ROC Curves For 3 Models")
+plot(perf_trained_model_2, col = "green", add = T)
+plot(perf_trained_model_3, col = "red", add = T)
+
+legend("bottomright", c(
+  text = sprintf("AUROC(Temperature) =%s",round(auroc_trained_model_value_1,digits = 3)),
+  text = sprintf("AUROC(HumidityRatio) =%s",round(auroc_trained_model_value_2,digits = 3)),
+  text = sprintf("AUROC(Temperature + HumidityRatio) =%s",round(auroc_trained_model_value_3,digits = 3))),
+  lty = 1.5,
+  cex = 0.75,
+  col = c("blue", "green", "red"),
+  bty = "o",
+  y.intersp = 1,
+  inset = c(0.02,0.05))
+
+
+```
+Comparison of results obtained by 10-fold cross validation and hold-out testing. 
+
+The ROC curves show that the best predictive accuracy is obtained from combining the two predictors, despite humidty ratio being a weaker predictor (using these models) than temperature alone. 
+
+All the results are better than chance, above 0.5.
+
+As would be expected the results from applying the trained models to the testing data set are not as strong as the results from the holdout testing.  This could be a result of bias from the 10-fold cross validation, the model may be oversimplified to a point, which shows when applying to the test data set. A model such as LOOCV could be used to reduce this bias, but it can be computationally expensive and although suffers less bias, through its higher flexibility, it may instead introduce more variance. As the results achieved from the 10 fold cross validation are good, this trade off between bias and variance may still result the 10 fold cross validation model being used, to reduce variance despite a slight increase in bias. 
